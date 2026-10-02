@@ -87,6 +87,25 @@ int main() {
   assert(buses.find("\"bus\":\"B\",\"zeroRx\":0,\"oneRx\":1") != String::npos);
   assert(buses.find("\"bus\":\"C\",\"zeroRx\":1,\"oneRx\":1,\"zeroAgeMs\":16,\"oneAgeMs\":26,\"raw\":\"8128080059DD9FA0\"") != String::npos);
   assert(request("POST /api/ulc/bus-rx\n").find("error") != String::npos);
+  // Same-ID frames on Body/Party must remain separate; reject short/invalid RX.
+  assert(request("GET /api/das/bus-rx\n").find("\"rx\":0,\"ms\":0,\"ageMs\":999999,\"raw\":\"\"") != String::npos);
+  const uint8_t fork[8] = {0, 2, 12, 0, 0, 0, 0, 0};
+  const uint8_t passing[8] = {0, 1, 8, 0, 0, 0, 0, 0};
+  now = 0xFFFFFFF0u;
+  usbDiagUlcObserve(0, 0x3E9, 8, fork);
+  usbDiagUlcObserve(2, 0x3E9, 8, passing);
+  usbDiagUlcObserve(1, 0x24A, 8, stock);
+  usbDiagUlcObserve(1, 0x3E9, 4, fork);
+  usbDiagUlcObserve(1, 0x3E9, 9, fork);
+  usbDiagUlcObserve(1, 0x3E9, 8, nullptr);
+  usbDiagUlcObserve(3, 0x24A, 8, stock);
+  now = 10;
+  const String dasBuses = request("GET /api/das/bus-rx\n");
+  assert(dasBuses.find("\"bus\":\"A\",\"id\":1001,\"rx\":1,\"ms\":4294967280,\"ageMs\":26,\"raw\":\"00020C0000000000\"") != String::npos);
+  assert(dasBuses.find("\"bus\":\"C\",\"id\":1001,\"rx\":1,\"ms\":4294967280,\"ageMs\":26,\"raw\":\"0001080000000000\"") != String::npos);
+  assert(dasBuses.find("\"bus\":\"B\",\"id\":1001,\"rx\":0") != String::npos);
+  assert(dasBuses.find("\"bus\":\"B\",\"id\":586,\"rx\":1") != String::npos);
+  assert(request("POST /api/das/bus-rx\n").find("error") != String::npos);
   assert(request("GET /api/canb/txtrace\n").find("\"frames\":[]") != String::npos);
   canBTxTraceLive[63] = {11, 100, 0x3F8, 8, 0, 0, {0x81, 0x28, 8, 0, 0x59, 0xDD, 0x9F, 0xA1}};
   canBTxTraceLive[0] = {12, 101, 0x293, 1, 0, -1, {0xFF}};

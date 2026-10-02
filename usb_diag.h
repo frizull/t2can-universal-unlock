@@ -3,8 +3,20 @@
 // Passive 0x3F8 observations, kept distinct by physical connector since boot.
 static struct UsbUlcRx { uint32_t count[2], ms[2]; uint8_t raw[8]; } usbUlcRx[3] = {};
 static portMUX_TYPE usbUlcRxMux = portMUX_INITIALIZER_UNLOCKED;
+// Latest planner and indicator-reason frames; retain physical bus identity.
+static constexpr uint16_t USB_DAS_IDS[] = {0x24A, 0x3E9};
+static struct UsbDasRx { uint32_t count, ms; uint8_t raw[8]; } usbDasRx[3][2] = {};
 static void usbDiagUlcObserve(uint8_t bus, uint32_t id, uint8_t dlc, const uint8_t *data) {
-  if (bus >= 3 || id != 0x3F8 || dlc != 8 || !data) return;
+  if (bus >= 3 || dlc != 8 || !data) return;
+  for (uint8_t i = 0; i < 2; ++i) if (id == USB_DAS_IDS[i]) {
+    const uint32_t now = (uint32_t)millis();
+    portENTER_CRITICAL(&usbUlcRxMux);
+    UsbDasRx &rx = usbDasRx[bus][i];
+    rx.count++; rx.ms = now; memcpy(rx.raw, data, 8);
+    portEXIT_CRITICAL(&usbUlcRxMux);
+    return;
+  }
+  if (id != 0x3F8) return;
   const uint8_t bit = (data[0] >> 1) & 1;
   const uint32_t now = (uint32_t)millis();
   portENTER_CRITICAL(&usbUlcRxMux);
@@ -12,6 +24,27 @@ static void usbDiagUlcObserve(uint8_t bus, uint32_t id, uint8_t dlc, const uint8
   usbUlcRx[bus].ms[bit] = now;
   memcpy(usbUlcRx[bus].raw, data, 8);
   portEXIT_CRITICAL(&usbUlcRxMux);
+}
+
+static String usbDiagDasBusRx() {
+  UsbDasRx rx[3][2];
+  portENTER_CRITICAL(&usbUlcRxMux);
+  memcpy(rx, usbDasRx, sizeof(rx));
+  portEXIT_CRITICAL(&usbUlcRxMux);
+  const uint32_t now = (uint32_t)millis();
+  String s = "{\"scope\":\"LATEST_RX_PER_PHYSICAL_BUS\",\"frames\":[";
+  for (uint8_t b = 0; b < 3; ++b) for (uint8_t i = 0; i < 2; ++i) {
+    const auto &e = rx[b][i];
+    char raw[17] = {}, line[192];
+    if (e.count) for (uint8_t j = 0; j < 8; ++j) snprintf(raw + j * 2, 3, "%02X", e.raw[j]);
+    snprintf(line, sizeof(line), "%s{\"bus\":\"%c\",\"id\":%u,\"rx\":%lu,\"ms\":%lu,\"ageMs\":%lu,\"raw\":\"%s\"}",
+             b || i ? "," : "", 'A' + b, (unsigned)USB_DAS_IDS[i],
+             (unsigned long)e.count, (unsigned long)e.ms,
+             (unsigned long)(e.count ? now - e.ms : 999999), raw);
+    s += line;
+  }
+  s += "]}";
+  return s;
 }
 
 static String usbDiagUlcBusRx() {
@@ -79,6 +112,7 @@ static void usbDiagTick() {
     {"GET /api/features/status", v3FeaturePolicyJson},
     {"GET /api/blinkA/stats", blinkAStatsToJson},
     {"GET /api/das/stats", dasTelemetryStatsToJson},
+    {"GET /api/das/bus-rx", usbDiagDasBusRx},
     {"GET /api/r79/stats", r79StatsToJson},
     {"GET /api/canb/txtrace", usbDiagCanBTxTrace},
     {"GET /api/ulc/bus-rx", usbDiagUlcBusRx},

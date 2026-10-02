@@ -94,6 +94,28 @@ Based directly on upstream `main` at
   Confirm-Free enqueued 46 messages and rejected three attempts. Saved profile,
   AP-only timing and Auto Blinker OFF were preserved; all three buses remained
   live. This still does not establish confirmation-free lane-change behavior.
+- Exit comparison: the user observed an automatic indicator and crossing into
+  a newly forming exit lane. A subsequent replay requiring a crossing into an
+  established adjacent lane still displayed turn-signal confirmation and stayed
+  in its lane. The latter capture spans 86.3 s / 56 USB snapshots, with 77
+  accepted Confirm-Free enqueues, three rejected attempts, no software RX drops,
+  Chassis hardware TX failures or recoveries, and 106 hardware RX-overrun events.
+  Auto Blinker remained OFF with zero sends. Observed NOA stock `0x3F8` and
+  outgoing R79 mux-1 payloads matched the failed passing capture. The successful
+  exit does not establish that Confirm-Free caused that behavior.
+- Added read-only USB `/api/das/bus-rx`: latest eight-byte `0x24A` planner and
+  `0x3E9` indicator-reason frames, separated by physical A/B/C connector, with RX
+  count, board timestamp and age. These are snapshots, not a lossless event log;
+  zero RX and empty raw payload mean unseen. Host tests cover bus isolation,
+  malformed/short frames, unseen data, clock wrap and GET-only access. No CAN
+  transmission policy changes accompany this diagnostic.
+- The diagnostic image passed the ESP32-S3 build and app-only flash validation.
+  Fresh USB boot checks preserved the Highland/stalkless three-bus profile,
+  Confirm-Free AP-active timing and Auto Blinker OFF. In 34.4 s, 152 snapshots
+  completed without USB errors, software RX drops, hardware TX failures or CAN
+  recovery. Hardware RX-overrun counters increased by 26 on Chassis and 34 on
+  the CAN-A group. `0x24A` was observed on B/Chassis and `0x3E9` separately on
+  A/Body and C/Party; the bench was AP-inactive during this runtime check.
 
 Run the committed host tests from the repository root:
 
