@@ -272,7 +272,7 @@ void setup() {
     ESP.restart();
   }
 
-  BaseType_t retTwai = xTaskCreatePinnedToCore(canTaskTwai, "canB", 8192, nullptr, 4, &canTaskTwaiHandle, 1);
+  BaseType_t retTwai = xTaskCreatePinnedToCore(canTaskTwai, "canB", 8192, nullptr, board == BOARD_TMR ? 5 : 4, &canTaskTwaiHandle, 1);
   if (retTwai != pdPASS) {
     T2CAN_SERIAL_PRINTF("CAN B task creation failed: %d\n", retTwai);
     delay(3000);

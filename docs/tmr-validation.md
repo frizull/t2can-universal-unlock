@@ -39,6 +39,18 @@ Based directly on upstream `main` at
   TX failures or CAN recoveries; Body/Chassis traffic and Party RX remained live.
   This measures transport behavior only: a lane-change suggestion or reported
   progress state has not established an actual simulated lane change.
+- The subsequent 109.2 s highway replay retained low hardware overruns
+  (1.51/s), but exposed 2,307 software RX drops during AP activity. The user
+  confirmed that the observed lane change required manual confirmation.
+  A23 now gives the Chassis decoder the same priority as Body/Party, including
+  after task recovery; the original T-2CAN priority remains unchanged.
+- With equal decoder priority, a 139.2 s pre-AP/NOA replay produced zero
+  software RX drops, USB failures, Chassis hardware TX failures or recoveries;
+  hardware overrun events averaged 0.82/s. Confirm-Free reported 140 accepted
+  sends and five rejected attempts. The capture included disengagement and NOA
+  re-engagement with pre-AP timing selected, but the user observed two lane-change
+  suggestions without a maneuver. Both timing variants have therefore failed
+  the requested behavioral test; AP-active-only timing was restored over USB.
 - The USB host helper holds an exclusive port lock before changing serial
   settings or reading replies. A pseudo-terminal test confirmed a competing
   helper is rejected before I/O and normal reads resume after lock release.

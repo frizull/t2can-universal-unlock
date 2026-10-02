@@ -842,7 +842,7 @@ static bool recoveryStartCanTasks() {
     canTaskMcpHandle = nullptr;
     return false;
   }
-  BaseType_t b = xTaskCreatePinnedToCore(canTaskTwai, "canB", 8192, nullptr, 4, &canTaskTwaiHandle, 1);
+  BaseType_t b = xTaskCreatePinnedToCore(canTaskTwai, "canB", 8192, nullptr, board == BOARD_TMR ? 5 : 4, &canTaskTwaiHandle, 1);
   if (b != pdPASS) {
     vTaskDelete(canTaskMcpHandle);
     canTaskMcpHandle = nullptr;
