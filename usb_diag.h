@@ -131,6 +131,7 @@ static void usbDiagTick() {
     {"POST /api/ulc/confirm-probe?mode=0", []() { return usbDiagConfirmProbe(0); }},
     {"POST /api/ulc/confirm-probe?mode=1", []() { return usbDiagConfirmProbe(1); }},
     {"POST /api/ulc/confirm-probe?mode=2", []() { return usbDiagConfirmProbe(2); }},
+    {"POST /api/ulc/confirm-probe?mode=3", []() { return usbDiagConfirmProbe(3); }},
     {"GET /api/lab/auto-lane-change/stats", ulcStatsToJson},
     {"GET /api/system/stats", systemStatsToJson},
     {"GET /api/researchcapture/stats", researchCaptureStatsToJson},

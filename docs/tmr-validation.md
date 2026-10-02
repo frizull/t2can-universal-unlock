@@ -161,6 +161,19 @@ Based directly on upstream `main` at
   transmission paths. The field's effect on 2026.32.7 is unverified. Camera
   enable, remaining payload bits, native Mad Max and Auto Blinker are unchanged.
   Mode 0 stops the experiment. Remove the probe after the experiment batch.
+- Confirmation matrix results so far: with NOA active, the user observed a
+  turn-signal-confirmation prompt both with bit17 cleared alongside Confirm-Free
+  and with bit17 cleared while stock stalk confirmation passed through. USB
+  verified the outgoing mux1 payload and, for the latter test, absence of any
+  0x3F8 override. Neither removed confirmation. The initial setup capture
+  included a hard CAN recovery; its resetting counters are not event deltas.
+- The first pre-engagement run was inconclusive: flags were observed clear in
+  Park, but only AP states 1/3 occurred during the armed capture and native
+  route-following remained off (0x3F8 bit49). The user subsequently enabled NOA.
+  Its later return must not be attributed to probe removal. The existing R79
+  manual-driving gate also suspends 0x3FD overrides during part of the transition;
+  this run does not establish continuous pre-engagement delivery. Probe and
+  timing were restored to OFF and AP_ACTIVE_ONLY at the end.
 
 Run the committed host tests from the repository root:
 
@@ -196,3 +209,11 @@ physical T-2CAN compatibility. Remaining bench verification:
 The existing LAB capture/export remains A/B-only. Party/C receive counters are
 reported separately by `/api/profile/status`; `/api/ulc/bus-rx` provides only a
 passive `0x3F8` snapshot for each connector, not a third-bus capture/export.
+
+- The repeated pre-engagement run reached NOA and still required the turn
+  signal. Bit17 was not continuously overlaid during manual-drive suppression.
+  Temporary mode 3 adds a received-stock mux1 echo changing only bit17 during
+  that interval; administrative holds and offline states still block it. This
+  enables a continuous engagement comparison without applying R79 overlays in
+  the manual-drive interval. Mode 3 has the same RAM-only expiry and remains OFF
+  at boot. Its behavioral result is pending.

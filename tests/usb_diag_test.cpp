@@ -79,7 +79,13 @@ int main() {
   ulcNoConfirmEnabled = false;
   assert(request("POST /api/ulc/confirm-probe?mode=1\n").find("error") != String::npos);
   assert(usbConfirmProbeState().mode == 0); ulcNoConfirmEnabled = true;
-  assert(request("POST /api/ulc/confirm-probe?mode=3\n").find("error") != String::npos);
+  assert(request("POST /api/ulc/confirm-probe?mode=3\n").find("\"mode\":3") != String::npos);
+  uint8_t manual[8] = {1,0,0x0E,0,6,8,0x1B,0x80};
+  const uint8_t manualExpected[8] = {1,0,0x0C,0,6,8,0x1B,0x80};
+  usbConfirmProbeApply3fd(manual, 8, 3);
+  assert(!memcmp(manual, manualExpected, 8)); // Preserve native R79 and camera bits.
+  usbConfirmProbeState(0);
+  assert(request("POST /api/ulc/confirm-probe?mode=4\n").find("error") != String::npos);
   assert(saves == probeSaves);
   assert(request("GET /api/ulc/update?timing=1\n").find("error") != String::npos);
   assert(ulcNoConfirmTimingMode == 0);

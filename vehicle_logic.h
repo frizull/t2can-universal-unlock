@@ -3075,6 +3075,14 @@ static bool r79FixedFastEcho(const twai_message_t &src, int64_t rxDequeueUs) {
   if (src.data_length_code < 8 || readMuxID(src.data) != 1u) return false;
   const uint32_t now = (uint32_t)millis();
   const uint8_t blockReason = r79FastReactiveBlockReason();
+  // Bench mode 3 covers engagement without applying the normal R79 overlays
+  // while manually driving: change only bit17 of this received mux1 frame.
+  if (blockReason == R79LAB_BLOCK_MANUAL && usbConfirmProbeState().mode == 3) {
+    twai_message_t probe = src;
+    probe.flags = 0;
+    usbConfirmProbeApply3fd(probe.data, probe.data_length_code, 3);
+    return r79LabDirectTwaiTransmit(&probe) == ESP_OK;
+  }
   if (blockReason != R79LAB_BLOCK_NONE) {
     r79FastReactiveRecordBlocked(blockReason, now);
     return false;
