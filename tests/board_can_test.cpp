@@ -51,6 +51,21 @@ static int xQueueReceive(Queue *q, void *value, TickType_t) {
 static void xQueueReset(Queue *q) { q->items.clear(); }
 static unsigned uxQueueMessagesWaiting(Queue *q) { return q->items.size(); }
 using TaskHandle_t = void *;
+using BaseType_t = int;
+constexpr int pdFALSE = 0, FALLING = 2;
+#define ARDUINO_ISR_ATTR
+static unsigned txWakes, irqWakes, isrYields, irqAttachments;
+static void (*irqHandler)();
+static int digitalPinToInterrupt(int pin) { return pin; }
+static void attachInterrupt(int pin, void (*fn)(), int edge) {
+  assert(pin == 5 && edge == FALLING); irqHandler = fn; irqAttachments++;
+}
+static void xTaskNotifyGive(TaskHandle_t task) { assert(task); txWakes++; }
+static void vTaskNotifyGiveFromISR(TaskHandle_t task, BaseType_t *woken) {
+  assert(task); irqWakes++; *woken = pdTRUE;
+}
+static void portYIELD_FROM_ISR() { isrYields++; }
+static uint32_t ulTaskNotifyTake(int, TickType_t) { return 0; }
 static int xTaskCreatePinnedToCore(void (*)(void *), const char *, int, void *, int, void **task, int) {
   *task = &ticks; return pdPASS;
 }
@@ -100,6 +115,7 @@ class MCP2515 {
   int cs, resets = 0;
   uint8_t errors = 0, status = 0;
   bool failInit = false;
+  bool errInterrupt = false, merrInterrupt = false;
   std::deque<can_frame> rx;
   std::vector<can_frame> sent;
   MCP2515(int pin, int, int *) : cs(pin) { chips[cs] = this; }
@@ -119,6 +135,8 @@ class MCP2515 {
   void clearRXnOVRFlags() { errors &= 0x3f; }
   void clearRXnOVR() { clearRXnOVRFlags(); }
   void clearTXInterrupts() { status &= ~8; }
+  void clearERRIF() { assert(mutexHeld); errInterrupt = false; }
+  void clearMERR() { assert(mutexHeld); merrInterrupt = false; }
 };
 
 #define ARDUINO 10800
@@ -169,10 +187,13 @@ int main() {
   assert(levels[18] == HIGH && levels[21] == HIGH); party.failInit = false;
   twai_general_config_t g; twai_timing_config_t t; twai_filter_config_t f;
   assert(twai_driver_install(&g, &t, &f) == ESP_OK && twai_start() == ESP_OK);
+  assert(irqAttachments == 1 && modes[5] == INPUT_PULLUP);
+  irqHandler(); assert(irqWakes == 1 && isrYields == 1);
   assert(levels[14] == LOW && nativeCalls.empty());
   twai_reconfigure_alerts(UINT32_MAX, nullptr);
   twai_message_t msg{}; msg.identifier = 0x399; msg.data_length_code = 8;
   assert(twai_transmit(&msg, 0) == ESP_OK); boardCanPollOnce();
+  assert(txWakes == 1);
   uint32_t alerts; twai_read_alerts(&alerts, 0); assert(!(alerts & TWAI_ALERT_TX_SUCCESS));
   auto &chassis = *MCP2515::chips.at(9);
   chassis.status = 8; boardCanPollOnce(); twai_read_alerts(&alerts, 0);
@@ -185,7 +206,9 @@ int main() {
   }
   boardCanPollOnce();
   chassis.rx.push_back(frame); chassis.errors = MCP2515::EFLG_RX0OVR;
+  chassis.errInterrupt = chassis.merrInterrupt = true;
   boardCanPollOnce(); assert(twai_receive(&msg, 0) == ESP_OK && msg.identifier == 0x399 && msg.data[0] == 2);
+  assert(!chassis.errInterrupt && !chassis.merrInterrupt);
   twai_status_info_t status{}; twai_get_status_info(&status); assert(status.rx_overrun_count == 1);
   for (int i = 0; i < 16; ++i) assert(twai_transmit(&msg, 0) == ESP_OK);
   assert(twai_transmit(&msg, 0) == ESP_ERR_TIMEOUT);
@@ -205,6 +228,7 @@ int main() {
   // All native TWAI entrypoints delegate on T-2CAN; topology and NVS guards
   // prevent a TMR three-bus profile from running on that board.
   board = BOARD_T2CAN;
+  const unsigned attachedBeforeNative = irqAttachments, wakesBeforeNative = txWakes;
   assert(!vehicleProfileSave(3, 4, 1));
   assert(vehicleProfileSave(3, 2, 1) && vehicleProfileLoadFromNvs());
   assert(!activeProfileNagSupported() && activeProfileAdvancedEapSupported());
@@ -215,6 +239,7 @@ int main() {
   twai_get_status_info(&status); twai_clear_transmit_queue();
   twai_reconfigure_alerts(0, nullptr); twai_read_alerts(&alerts, 0);
   assert(nativeCalls.size() == 11);
+  assert(irqAttachments == attachedBeforeNative && txWakes == wakesBeforeNative);
   delete boardRx; delete boardTx;
   std::cout << "PASS: straps, profiles/NVS, three-bus routing, FIFO/alerts, overflow, recovery, T-2CAN delegation\n";
 }

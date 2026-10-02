@@ -91,6 +91,12 @@ static twai_status_info_t boardStatus = {};
 static bool boardInstalled, boardTxPending;
 static uint32_t boardAlerts, boardAlertMask, boardTxSince;
 
+static void ARDUINO_ISR_ATTR boardCanWake() {
+  BaseType_t woken = pdFALSE;
+  if (boardCanTask) vTaskNotifyGiveFromISR(boardCanTask, &woken);
+  if (woken) portYIELD_FROM_ISR();
+}
+
 static bool boardCanBegin() {
   boardCanMutex = xSemaphoreCreateMutex();
   return boardCanMutex != nullptr;
@@ -135,6 +141,8 @@ static void boardCanPollOnce() {
           boardAlerts |= TWAI_ALERT_RX_QUEUE_FULL;
         }
       }
+      boardCanB->clearERRIF();
+      boardCanB->clearMERR();
       // One hardware mailbox preserves the upstream FIFO order. Enqueue
       // success is not TX success: only TX0IF confirms completion.
       const uint8_t status = boardCanB->getStatus();
@@ -166,7 +174,7 @@ static void boardCanPollOnce() {
 static void boardCanPoll(void *) {
   for (;;) {
     boardCanPollOnce();
-    vTaskDelay(1);
+    ulTaskNotifyTake(pdTRUE, 1); // IRQ/queued TX wakes immediately; timeout services TX completion.
   }
 }
 
@@ -183,6 +191,8 @@ static esp_err_t boardTwaiInstall(const twai_general_config_t *g,
   if (!boardCanTask && xTaskCreatePinnedToCore(boardCanPoll, "canSPI", 3072, nullptr,
                                              6, &boardCanTask, 1) != pdPASS)
     return ESP_ERR_NO_MEM;
+  pinMode(5, INPUT_PULLUP); // A23 IRQ_B, MCP2515 active-low interrupt.
+  attachInterrupt(digitalPinToInterrupt(5), boardCanWake, FALLING);
   boardStatus = {};
   boardStatus.state = TWAI_STATE_STOPPED;
   boardAlerts = 0;
@@ -250,7 +260,10 @@ static esp_err_t boardTwaiTransmit(const twai_message_t *msg, TickType_t wait) {
       BoardCanLock lock(0);
       if (!lock.locked) return ESP_ERR_TIMEOUT;
       if (!boardInstalled || boardStatus.state != TWAI_STATE_RUNNING) return ESP_ERR_INVALID_STATE;
-      if (xQueueSend(boardTx, &frame, 0) == pdTRUE) return ESP_OK;
+      if (xQueueSend(boardTx, &frame, 0) == pdTRUE) {
+        xTaskNotifyGive(boardCanTask);
+        return ESP_OK;
+      }
     }
     if ((TickType_t)(xTaskGetTickCount() - start) >= wait) break;
     vTaskDelay(1);

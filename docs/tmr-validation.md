@@ -32,6 +32,16 @@ Based directly on upstream `main` at
 - USB status runs independently of synchronous HTTP clients. The initial
   web-task implementation was moved after a live capture encountered a timeout;
   status reads then recovered without a board reset.
+- A23 Chassis receive interrupts and queued transmissions now wake the SPI
+  task immediately. On the dismantled simulation bench, receive-overrun events
+  fell from 347.69/s over 19.9 s before deployment to 1.35/s over 24.5 s after
+  deployment. Both captures had zero USB failures, software RX drops, Chassis
+  TX failures or CAN recoveries; Body/Chassis traffic and Party RX remained live.
+  This measures transport behavior only: a lane-change suggestion or reported
+  progress state has not established an actual simulated lane change.
+- The USB host helper holds an exclusive port lock before changing serial
+  settings or reading replies. A pseudo-terminal test confirmed a competing
+  helper is rejected before I/O and normal reads resume after lock release.
 
 Run the committed host tests from the repository root:
 

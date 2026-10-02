@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Read live dashboard status over USB on macOS/Linux, without resetting the ESP."""
 import argparse
+import fcntl
 import json
 import os
 import select
@@ -17,6 +18,7 @@ parser.add_argument("paths", nargs="*", default=[
 args = parser.parse_args()
 fd = os.open(args.port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
 try:
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     settings = termios.tcgetattr(fd)
     settings[0] = settings[1] = settings[3] = 0
     settings[2] = termios.CS8 | termios.CREAD | termios.CLOCAL
