@@ -143,15 +143,24 @@ Based directly on upstream `main` at
   `93` and back to `9F`, matching bits 50-51, raw 3/0/3. The original native
   setting was restored and observed in CAN. This identifies the emitted field;
   it does not establish acceptance of an injected copy.
-- Temporary USB control test `/api/ulc/speed-probe`: POST `enabled=1` arms a
-  RAM-only, 120-second Disabled-speed override in the existing stock-follow
-  compositor; POST `enabled=0` stops it and GET reports remaining time. It
-  starts OFF, requires Confirm-Free selection and AP-active state, expires
-  even if USB disconnects, and writes no NVS. The same stock template and CAN
-  admission/recovery policy apply. Host tests verify the exact native payload
-  change, no change outside the gate, expiry/clock wrap, disconnect and no saves.
-  This is a control experiment, not a claimed confirmation fix; remove it when
-  the experiment is complete.
+- The temporary speed-setting control completed with 111 USB snapshots over
+  165.6 s and no USB errors. Stock stayed Mad Max throughout; injected copies
+  carried Disabled for 120 s, then returned to Mad Max. The user observed no
+  passing suggestion during the override and a turn-signal-confirmation prompt
+  after expiry. The first sampled SPEED request occurred at 123.7 s. This
+  supports acceptance of the injected speed setting; it does not prove that the
+  separate confirmation flag is honored. AP remained NOA, Auto Blinker OFF.
+  Confirm-Free counters increased by 159 accepted and seven rejected enqueues;
+  Chassis had no software RX drops, hardware TX failures or recovery, with 155
+  hardware RX overruns. The CAN-A group recorded 128 hardware TX failures.
+  The speed probe was explicitly disarmed and its firmware code removed.
+- Next temporary USB matrix `/api/ulc/confirm-probe`: mode 1 clears public-DBC
+  `UI_driverMonitorConfirmation` (0x3FD mux1 bit17) alongside normal Confirm-Free;
+  mode 2 clears that flag while leaving the stock 0x3F8 stalk-confirmation flag.
+  Both modes expire after 120 s, start OFF, write no NVS, and use only existing
+  transmission paths. The field's effect on 2026.32.7 is unverified. Camera
+  enable, remaining payload bits, native Mad Max and Auto Blinker are unchanged.
+  Mode 0 stops the experiment. Remove the probe after the experiment batch.
 
 Run the committed host tests from the repository root:
 
