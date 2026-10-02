@@ -85,7 +85,16 @@ int main() {
   usbConfirmProbeApply3fd(manual, 8, 3);
   assert(!memcmp(manual, manualExpected, 8)); // Preserve native R79 and camera bits.
   usbConfirmProbeState(0);
-  assert(request("POST /api/ulc/confirm-probe?mode=4\n").find("error") != String::npos);
+  for (int mode : {4, 5}) {
+    assert(request("POST /api/ulc/confirm-probe?mode=" + std::to_string(mode) + "\n").find("error") == String::npos);
+    assert(usbConfirmProbeBit18Policy(1, usbConfirmProbeState().mode) == 0);
+    uint8_t stock[8] = {1,0,6,0,6,0x88,0x1B,0x80};
+    usbConfirmProbeApply3fd(stock, 8, (uint8_t)mode);
+    assert(stock[2] == (mode == 4 ? 6 : 4));
+  }
+  assert(usbConfirmProbeBit18Policy(1, 0) == 1);
+  usbConfirmProbeState(0);
+  assert(request("POST /api/ulc/confirm-probe?mode=6\n").find("error") != String::npos);
   assert(saves == probeSaves);
   assert(request("GET /api/ulc/update?timing=1\n").find("error") != String::npos);
   assert(ulcNoConfirmTimingMode == 0);

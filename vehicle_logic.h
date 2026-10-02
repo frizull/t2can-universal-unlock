@@ -282,6 +282,7 @@ static bool r79LabApplySelectedBits(uint8_t *data) {
   portENTER_CRITICAL(&r79LabMux);
   bit18Policy = r79Bit18Policy;
   portEXIT_CRITICAL(&r79LabMux);
+  bit18Policy = usbConfirmProbeBit18Policy(bit18Policy, usbConfirmProbeState().mode);
   r79FixedApplyBitsPure(data, bit18Policy);
   r79DmsNagLabApply(data);
   return true;
@@ -3092,6 +3093,7 @@ static bool r79FixedFastEcho(const twai_message_t &src, int64_t rxDequeueUs) {
   portENTER_CRITICAL(&r79LabMux);
   bit18Policy = r79Bit18Policy;
   portEXIT_CRITICAL(&r79LabMux);
+  bit18Policy = usbConfirmProbeBit18Policy(bit18Policy, usbConfirmProbeState().mode);
 
   twai_message_t out = {};
   out.identifier = 0x3FD;

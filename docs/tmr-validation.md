@@ -216,4 +216,12 @@ passive `0x3F8` snapshot for each connector, not a third-bus capture/export.
   that interval; administrative holds and offline states still block it. This
   enables a continuous engagement comparison without applying R79 overlays in
   the manual-drive interval. Mode 3 has the same RAM-only expiry and remains OFF
-  at boot. Its behavioral result is pending.
+  at boot. The continuous comparison reached NOA and still asked for the turn
+  signal without maneuvering (135 snapshots, 220.95 s, zero USB errors). Mode 0
+  and AP_ACTIVE_ONLY timing were restored afterward.
+- The next temporary comparison preserves native bit18 using the existing R79
+  STOCK policy: mode 4 with normal Confirm-Free, mode 5 also clearing bit17.
+  Both fast echo and periodic/retry output use that temporary policy; saved NVS
+  policy remains unchanged. This tests interaction with the normal bit18=0
+  override without assigning an unverified meaning to bit18. Both modes retain
+  the same expiry and are OFF at boot.
