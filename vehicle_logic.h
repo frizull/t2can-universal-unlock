@@ -833,6 +833,8 @@ static volatile uint32_t ulcOffHighwayLastTxMs = 0;
 // Production CAN-B UI_ulcStalkConfirm feature. Default timing remains
 // AP-active-only; PRE-AP is the explicit alternate policy.
 static volatile bool ulcNoConfirmEnabled = false;
+static volatile bool usbSpeedProbeArmed = false; // RAM-only; never saved to NVS.
+static volatile uint32_t usbSpeedProbeStartedMs = 0;
 static volatile bool uiUlcStalkConfirm = true;
 static volatile uint8_t ulcNoConfirmTimingMode = ULC_NO_CONFIRM_TIMING_AP_ACTIVE_ONLY_PURE;
 static volatile uint32_t ulcNoConfirmTxOk = 0;
@@ -2521,6 +2523,7 @@ static void injectDriverAssistControl(const twai_message_t &src) {
 
     UlcCompositeSelectionPure selected = {};
     uint8_t confirmTiming;
+    bool speedProbe; uint32_t speedProbeStarted;
     portENTER_CRITICAL(&lab3f8Mux);
     uiUlcStalkConfirm = getBit(src.data, 1);
     selected.alcOffHighwayEnabled =
@@ -2529,6 +2532,8 @@ static void injectDriverAssistControl(const twai_message_t &src) {
     selected.ulcOffHighwayMode = lab3f8UlcOffHighwayMode;
     selected.confirmFreeEnabled = ulcNoConfirmEnabled;
     confirmTiming = ulcNoConfirmTimingMode;
+    speedProbe = usbSpeedProbeArmed;
+    speedProbeStarted = usbSpeedProbeStartedMs;
     portEXIT_CRITICAL(&lab3f8Mux);
 
     const bool blindSelected =
@@ -2574,8 +2579,11 @@ static void injectDriverAssistControl(const twai_message_t &src) {
     out.flags = 0;
     const uint8_t stockBlindBefore =
         (uint8_t)readBitsLE(out.data, 52, 2);
-    const UlcCompositeResultPure result =
+    UlcCompositeResultPure result =
         ulcCompose3f8Pure(out.data, out.data_length_code, selected, gates);
+    result.changed = ulcSpeedProbeApplyPure(out.data, out.data_length_code,
+        speedProbe && selected.confirmFreeEnabled, speedProbeStarted, (uint32_t)millis(),
+        ulcPolicyApGateOpenPure(true, dasValid, dasState)) || result.changed;
     if (!result.changed) return;
 
     if (!twaiNonSummonAdmissionOpen()) {

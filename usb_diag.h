@@ -104,6 +104,23 @@ static String usbDiagConfirmTiming(uint8_t timing) {
   return ulcStatsToJson();
 }
 
+static String usbDiagSpeedProbe(int command) {
+  const uint32_t now = (uint32_t)millis();
+  portENTER_CRITICAL(&lab3f8Mux);
+  if (command >= 0) {
+    usbSpeedProbeArmed = command == 1 && ulcNoConfirmEnabled;
+    usbSpeedProbeStartedMs = now;
+  }
+  if ((uint32_t)(now - usbSpeedProbeStartedMs) >= ULC_SPEED_PROBE_MS)
+    usbSpeedProbeArmed = false;
+  const uint32_t remaining = usbSpeedProbeArmed ? ULC_SPEED_PROBE_MS - (now - usbSpeedProbeStartedMs) : 0;
+  portEXIT_CRITICAL(&lab3f8Mux);
+  char out[128];
+  snprintf(out, sizeof(out), "{\"armed\":%s,\"remainingMs\":%lu,\"speedRaw\":0,\"persistent\":false}",
+           remaining ? "true" : "false", (unsigned long)remaining);
+  return String(out);
+}
+
 // Dashboard snapshots and the existing Confirm-Free timing selector over USB.
 // Independent of synchronous HTTP; only the exact requests below are accepted.
 static void usbDiagTick() {
@@ -117,6 +134,9 @@ static void usbDiagTick() {
     {"GET /api/canb/txtrace", usbDiagCanBTxTrace},
     {"GET /api/ulc/bus-rx", usbDiagUlcBusRx},
     {"GET /api/ulc/stats", ulcStatsToJson},
+    {"GET /api/ulc/speed-probe", []() { return usbDiagSpeedProbe(-1); }},
+    {"POST /api/ulc/speed-probe?enabled=0", []() { return usbDiagSpeedProbe(0); }},
+    {"POST /api/ulc/speed-probe?enabled=1", []() { return usbDiagSpeedProbe(1); }},
     {"GET /api/lab/auto-lane-change/stats", ulcStatsToJson},
     {"GET /api/system/stats", systemStatsToJson},
     {"GET /api/researchcapture/stats", researchCaptureStatsToJson},
@@ -128,6 +148,12 @@ static void usbDiagTick() {
   static bool overflow = false;
   static String response;
   static uint32_t responseAt = 0;
+  // Expire even with USB disconnected, so clock wrap cannot rearm an old probe.
+  if (usbSpeedProbeArmed && (uint32_t)(millis() - usbSpeedProbeStartedMs) >= ULC_SPEED_PROBE_MS) {
+    portENTER_CRITICAL(&lab3f8Mux);
+    usbSpeedProbeArmed = false;
+    portEXIT_CRITICAL(&lab3f8Mux);
+  }
   if (!Serial) {
     used = sent = 0; overflow = false; response = "";
     return;

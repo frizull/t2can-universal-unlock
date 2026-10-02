@@ -3,6 +3,16 @@
 #include <stdint.h>
 
 static constexpr uint8_t ULC_COMPOSITE_STOCK_PURE = 0xFFu;
+// Temporary bench control: native Mad Max -> Disabled reference changed only bits50:51.
+static constexpr uint32_t ULC_SPEED_PROBE_MS = 120000;
+static inline bool ulcSpeedProbeApplyPure(uint8_t *data, uint8_t dlc, bool armed,
+                                         uint32_t started, uint32_t now, bool apActive) {
+  if (!data || dlc != 8 || !armed || !apActive ||
+      (uint32_t)(now - started) >= ULC_SPEED_PROBE_MS) return false;
+  const uint8_t before = data[6];
+  data[6] &= (uint8_t)~0x0Cu;
+  return data[6] != before;
+}
 
 struct UlcCompositeSelectionPure {
   bool alcOffHighwayEnabled;

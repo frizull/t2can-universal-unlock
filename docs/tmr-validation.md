@@ -126,6 +126,32 @@ Based directly on upstream `main` at
   (0/3/4/5/8). That alternate field is an unvalidated candidate, not an established
   signal mapping or a Confirm-Free fix. Raw frames and bus identities are saved
   for comparison with a blocked request; firmware transmission policy is unchanged.
+- The matching blocked replay again required turn-signal confirmation and did
+  not maneuver. Across 146.1 s / 589 snapshots there were no observed `0x3E9`
+  left/right start requests on A or C, despite B reporting NAV and SPEED ULC
+  activity. The legacy reason field stayed zero; candidate bits 33-36 were
+  0/4/15 alongside NONE/CANCEL/DEFER requests. This supports investigating the
+  confirmation input, not treating a reported ULC-progress bit as execution.
+  Confirm-Free enqueued 142 messages and rejected two; Auto Blinker sent zero.
+  USB errors, software RX drops, Chassis hardware TX failures and recoveries
+  remained zero. The CAN-A group recorded 226 TX failures, zero consecutive
+  failures at the final sample and no bus-off; this is separate from the
+  Chassis confirmation path. The user confirms only TMR USB/CAN access is
+  available, without an Autopilot diagnostic/Ethernet configuration readout.
+- Native setting reference: the user changed Speed Based Lane Changes from
+  Mad Max to Disabled and back. Stock `0x3F8` on B changed byte 6 from `9F` to
+  `93` and back to `9F`, matching bits 50-51, raw 3/0/3. The original native
+  setting was restored and observed in CAN. This identifies the emitted field;
+  it does not establish acceptance of an injected copy.
+- Temporary USB control test `/api/ulc/speed-probe`: POST `enabled=1` arms a
+  RAM-only, 120-second Disabled-speed override in the existing stock-follow
+  compositor; POST `enabled=0` stops it and GET reports remaining time. It
+  starts OFF, requires Confirm-Free selection and AP-active state, expires
+  even if USB disconnects, and writes no NVS. The same stock template and CAN
+  admission/recovery policy apply. Host tests verify the exact native payload
+  change, no change outside the gate, expiry/clock wrap, disconnect and no saves.
+  This is a control experiment, not a claimed confirmation fix; remove it when
+  the experiment is complete.
 
 Run the committed host tests from the repository root:
 

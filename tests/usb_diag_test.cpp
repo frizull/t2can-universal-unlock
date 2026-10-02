@@ -5,6 +5,7 @@
 #include <cstring>
 #include <iostream>
 #include <string>
+#include "../ulc_compositor_pure.h"
 using String = std::string;
 using portMUX_TYPE = int;
 #define portMUX_INITIALIZER_UNLOCKED 0
@@ -20,8 +21,11 @@ struct CanBTxTraceEntry { uint32_t seq, capturedMs; uint16_t id; uint8_t dlc, so
 static CanBTxTraceEntry canBTxTraceLive[CAN_B_TX_TRACE_CAPACITY] = {};
 static uint8_t canBTxTraceLiveCount, canBTxTraceLiveHead;
 static uint8_t ulcNoConfirmTimingMode;
+static bool ulcNoConfirmEnabled = true, usbSpeedProbeArmed;
+static uint32_t usbSpeedProbeStartedMs;
 static bool saveOk = true;
-static bool ulcCfgSave() { return saveOk; }
+static unsigned saves;
+static bool ulcCfgSave() { ++saves; return saveOk; }
 #define portENTER_CRITICAL(x) ((void)0)
 #define portEXIT_CRITICAL(x) ((void)0)
 static struct {
@@ -55,6 +59,31 @@ int main() {
   assert(request(String(80, 'x') + "GET /api/blinkA/stats\n").find("error") != String::npos);
   assert(request(String("GET /api/profile/status\0bad\n", 28)).find("error") != String::npos);
   assert(snapshots == before);
+  const unsigned probeSaves = saves;
+  assert(request("GET /api/ulc/speed-probe\n").find("\"armed\":false") != String::npos);
+  assert(request("POST /api/ulc/speed-probe?enabled=1\n").find("\"remainingMs\":120000") != String::npos);
+  assert(usbSpeedProbeArmed && saves == probeSaves);
+  uint8_t native[8] = {0x81, 0x28, 8, 0, 0x59, 0xDD, 0x9F, 0xA0};
+  const uint8_t disabled[8] = {0x81, 0x28, 8, 0, 0x59, 0xDD, 0x93, 0xA0};
+  assert(!ulcSpeedProbeApplyPure(native, 8, true, 0, 0, false));
+  assert(native[6] == 0x9F);
+  assert(ulcSpeedProbeApplyPure(native, 8, true, 0xFFFFFFF0u, 10, true));
+  assert(!memcmp(native, disabled, 8)); // Exactly the native two-bit change.
+  native[6] = 0x9F;
+  assert(!ulcSpeedProbeApplyPure(native, 8, false, 0, 1, true));
+  assert(!ulcSpeedProbeApplyPure(native, 8, true, 0, ULC_SPEED_PROBE_MS, true));
+  assert(!ulcSpeedProbeApplyPure(native, 7, true, 0, 1, true));
+  assert(!ulcSpeedProbeApplyPure(nullptr, 8, true, 0, 1, true));
+  assert(native[6] == 0x9F);
+  now = ULC_SPEED_PROBE_MS; Serial.connected = false; ticks();
+  assert(!usbSpeedProbeArmed); Serial.connected = true;
+  assert(request("POST /api/ulc/speed-probe?enabled=1\n").find("\"armed\":true") != String::npos);
+  assert(request("POST /api/ulc/speed-probe?enabled=0\n").find("\"armed\":false") != String::npos);
+  ulcNoConfirmEnabled = false;
+  assert(request("POST /api/ulc/speed-probe?enabled=1\n").find("\"armed\":false") != String::npos);
+  ulcNoConfirmEnabled = true;
+  assert(request("POST /api/ulc/speed-probe?enabled=2\n").find("error") != String::npos);
+  assert(saves == probeSaves);
   assert(request("GET /api/ulc/update?timing=1\n").find("error") != String::npos);
   assert(ulcNoConfirmTimingMode == 0);
   assert(request("POST /api/ulc/update?timing=1\n").find("ulcStatsToJson") != String::npos);
