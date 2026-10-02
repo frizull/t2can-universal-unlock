@@ -1,5 +1,62 @@
 #pragma once
 
+// Passive 0x3F8 observations, kept distinct by physical connector since boot.
+static struct UsbUlcRx { uint32_t count[2], ms[2]; uint8_t raw[8]; } usbUlcRx[3] = {};
+static portMUX_TYPE usbUlcRxMux = portMUX_INITIALIZER_UNLOCKED;
+static void usbDiagUlcObserve(uint8_t bus, uint32_t id, uint8_t dlc, const uint8_t *data) {
+  if (bus >= 3 || id != 0x3F8 || dlc != 8 || !data) return;
+  const uint8_t bit = (data[0] >> 1) & 1;
+  const uint32_t now = (uint32_t)millis();
+  portENTER_CRITICAL(&usbUlcRxMux);
+  usbUlcRx[bus].count[bit]++;
+  usbUlcRx[bus].ms[bit] = now;
+  memcpy(usbUlcRx[bus].raw, data, 8);
+  portEXIT_CRITICAL(&usbUlcRxMux);
+}
+
+static String usbDiagUlcBusRx() {
+  UsbUlcRx rx[3];
+  portENTER_CRITICAL(&usbUlcRxMux);
+  memcpy(rx, usbUlcRx, sizeof(rx));
+  portEXIT_CRITICAL(&usbUlcRxMux);
+  const uint32_t now = (uint32_t)millis();
+  String s = "{\"scope\":\"RX_SINCE_BOOT\",\"id\":1016,\"buses\":[";
+  for (uint8_t i = 0; i < 3; ++i) {
+    char raw[17] = {}, line[240];
+    if (rx[i].count[0] || rx[i].count[1])
+      for (uint8_t j = 0; j < 8; ++j) snprintf(raw + j * 2, 3, "%02X", rx[i].raw[j]);
+    snprintf(line, sizeof(line), "%s{\"bus\":\"%c\",\"zeroRx\":%lu,\"oneRx\":%lu,\"zeroAgeMs\":%lu,\"oneAgeMs\":%lu,\"raw\":\"%s\"}",
+             i ? "," : "", 'A' + i, (unsigned long)rx[i].count[0], (unsigned long)rx[i].count[1],
+             (unsigned long)(rx[i].count[0] ? now - rx[i].ms[0] : 999999),
+             (unsigned long)(rx[i].count[1] ? now - rx[i].ms[1] : 999999), raw);
+    s += line;
+  }
+  s += "]}";
+  return s;
+}
+
+static String usbDiagCanBTxTrace() {
+  CanBTxTraceEntry entries[CAN_B_TX_TRACE_CAPACITY];
+  portENTER_CRITICAL(&canBTxTraceMux);
+  const uint8_t count = canBTxTraceLiveCount;
+  const uint8_t head = canBTxTraceLiveHead;
+  memcpy(entries, canBTxTraceLive, sizeof(entries));
+  portEXIT_CRITICAL(&canBTxTraceMux);
+  String s = "{\"scope\":\"CAN_B_ENQUEUE\",\"frames\":[";
+  s.reserve(10000);
+  for (uint8_t i = 0; i < count && i < CAN_B_TX_TRACE_CAPACITY; ++i) {
+    const auto &e = entries[(head + CAN_B_TX_TRACE_CAPACITY - count + i) % CAN_B_TX_TRACE_CAPACITY];
+    char raw[17] = {}, line[160];
+    for (uint8_t j = 0; j < e.dlc && j < 8; ++j) snprintf(raw + j * 2, 3, "%02X", e.data[j]);
+    snprintf(line, sizeof(line), "%s{\"seq\":%lu,\"ms\":%lu,\"id\":%u,\"dlc\":%u,\"result\":%ld,\"raw\":\"%s\"}",
+             i ? "," : "", (unsigned long)e.seq, (unsigned long)e.capturedMs,
+             (unsigned)e.id, (unsigned)e.dlc, (long)e.result, raw);
+    s += line;
+  }
+  s += "]}";
+  return s;
+}
+
 static String usbDiagConfirmTiming(uint8_t timing) {
   portENTER_CRITICAL(&lab3f8Mux);
   const uint8_t before = ulcNoConfirmTimingMode;
@@ -22,6 +79,9 @@ static void usbDiagTick() {
     {"GET /api/features/status", v3FeaturePolicyJson},
     {"GET /api/blinkA/stats", blinkAStatsToJson},
     {"GET /api/das/stats", dasTelemetryStatsToJson},
+    {"GET /api/r79/stats", r79StatsToJson},
+    {"GET /api/canb/txtrace", usbDiagCanBTxTrace},
+    {"GET /api/ulc/bus-rx", usbDiagUlcBusRx},
     {"GET /api/ulc/stats", ulcStatsToJson},
     {"GET /api/lab/auto-lane-change/stats", ulcStatsToJson},
     {"GET /api/system/stats", systemStatsToJson},
@@ -39,14 +99,16 @@ static void usbDiagTick() {
     return;
   }
   if (response.length()) {
-    // A slow/disconnected reader must never hold up CAN or the dashboard.
+    // Expire stalled output, allowing large traces to progress without blocking CAN.
     if ((uint32_t)(millis() - responseAt) >= 2000) { response = ""; return; }
     const int free = Serial.availableForWrite();
     size_t count = response.length() - sent;
     if (free <= 0) return;
     if (count > (size_t)free) count = (size_t)free;
     if (count > 256) count = 256;
-    sent += Serial.write((const uint8_t *)response.c_str() + sent, count);
+    const size_t written = Serial.write((const uint8_t *)response.c_str() + sent, count);
+    sent += written;
+    if (written) responseAt = millis();
     if (sent == response.length()) response = "";
     return;
   }

@@ -44,9 +44,15 @@ board: `python3 tools/usb_status.py --port /dev/cu.usbmodem101` (use the actual
 ESP port). Optional arguments select status paths such as `/api/blinkA/stats`.
 The wire protocol is `GET /api/...` followed by a newline, returning one JSON
 line with `path` and `data`. It exposes read-only profile, features, Auto Blinker,
-DAS, ULC/Auto Lane Change, system and research-capture status from the same
+DAS, R79, ULC/Auto Lane Change, system and research-capture status from the same
 builders as the dashboard, on both TMR and T-2CAN. USB diagnostics do not require
-the verbose logging build flag. The only USB writes are the existing Confirm-Free
+the verbose logging build flag. `/api/canb/txtrace` returns the latest 64 CAN-B
+send attempts with sequence, time, ID, payload and enqueue result; it does not
+prove the destination controller accepted a command. `/api/ulc/bus-rx` passively
+counts received `0x3F8` bit-1 values by physical connector A/B/C, with ages and
+the latest payload. Counters span the current boot; an unseen value has count 0.
+On TMR, Party is C even when YL maps the upstream CAN-A role to that connector.
+The only USB writes are the existing Confirm-Free
 timing choices: `--method POST '/api/ulc/update?timing=0'` (AP only) or `timing=1`
 (Pre-AP). They persist the selection with rollback on an NVS error. No arbitrary
 CAN injection or other settings writes are exposed.

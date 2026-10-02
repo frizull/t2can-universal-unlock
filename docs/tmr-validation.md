@@ -54,6 +54,46 @@ Based directly on upstream `main` at
 - The USB host helper holds an exclusive port lock before changing serial
   settings or reading replies. A pseudo-terminal test confirmed a competing
   helper is rejected before I/O and normal reads resume after lock release.
+- Added read-only USB R79 status, CAN-B send traces and physical A/B/C `0x3F8`
+  observations. Host tests cover trace-ring wrapping, complete payloads,
+  per-bus isolation, rejected malformed input and age arithmetic across clock
+  wrap. Send traces report enqueue results, not receiver acceptance.
+- On the user-reported Tesla 2026.32.7 Highland bench, a 128.6 s capture
+  contained 124 distinct Confirm-Free send attempts: 121 enqueued and three
+  timed out. Every attempted payload cleared bit 1. There were no software RX
+  drops, Chassis hardware TX failures or recoveries. The user still observed
+  "Use the turn signal to confirm" and no unconfirmed maneuver. A subsequent
+  capture also failed behaviorally and had one USB timeout, then recovered.
+- A temporary RAM-only 150 ms delayed-copy experiment also failed the observed
+  behavior. Its 149.5 s capture contained 223 accepted and nine rejected sends,
+  including 109 accepted identical pairs 145–160 ms apart. No software RX
+  drops, Chassis hardware TX failures or recoveries occurred. The experiment
+  was disabled over USB and removed; the production stock-follow policy is
+  unchanged. Successful sends and reported ALC states do not establish success.
+- Physical-connector observations across two further NOA captures found stock
+  `0x3F8` only on B/Chassis, always with confirmation bit 1 set; A/Body and
+  C/Party had no received `0x3F8`, despite live traffic. This provides no
+  same-bus template or evidence for moving the override to Party. One reported
+  progress state still lacks confirmation that it occurred without manual input.
+- The user reports that the native "Require Lane Change Confirmation" setting
+  is absent. The public [signal map](https://github.com/joshwardell/model3dbc/blob/master/Model3CAN.dbc)
+  identifies `UI_ulcStalkConfirm` at `0x3F8` bit 1, matching this firmware.
+  [Tesla's manual](https://www.tesla.com/ownersmanual/model3/en_us/GUID-20F2262F-CDF6-408E-A752-2AD9B0CC2FD6.html)
+  describes the setting as "if equipped"; neither source establishes how the
+  bench's 2026.32.7 controller accepts it. A native ON/OFF reference capture
+  from a comparable configuration, or receiver-side effective-setting evidence,
+  is still needed to distinguish ignored input from an additional policy gate.
+- A second trace timeout prompted a host reproduction: a large reply making
+  steady progress could exceed the fixed two-second response deadline. USB now
+  expires after two seconds without write progress. The regression, stopped
+  reader, disconnect and backpressure cases pass with sanitizers; output remains
+  bounded per loop and never waits for the host.
+- Final app-only deployment and USB recheck passed. A 58.6 s observation span
+  (41 samples in the one-minute run) had zero USB failures, software RX drops,
+  Chassis hardware TX failures or recoveries, and 60 hardware RX-overrun events.
+  Confirm-Free enqueued 46 messages and rejected three attempts. Saved profile,
+  AP-only timing and Auto Blinker OFF were preserved; all three buses remained
+  live. This still does not establish confirmation-free lane-change behavior.
 
 Run the committed host tests from the repository root:
 
@@ -87,5 +127,5 @@ physical T-2CAN compatibility. Remaining bench verification:
    upstream CAN-A recovery group; Chassis has its own queue and recovery path.
 
 The existing LAB capture/export remains A/B-only. Party/C receive counters are
-reported separately by `/api/profile/status`; third-bus capture/export is outside
-this minimal hardware port.
+reported separately by `/api/profile/status`; `/api/ulc/bus-rx` provides only a
+passive `0x3F8` snapshot for each connector, not a third-bus capture/export.
