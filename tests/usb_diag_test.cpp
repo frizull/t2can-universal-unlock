@@ -20,13 +20,10 @@ struct CanBTxTraceEntry { uint32_t seq, capturedMs; uint16_t id; uint8_t dlc, so
 static CanBTxTraceEntry canBTxTraceLive[CAN_B_TX_TRACE_CAPACITY] = {};
 static uint8_t canBTxTraceLiveCount, canBTxTraceLiveHead;
 static uint8_t ulcNoConfirmTimingMode;
-static bool ulcNoConfirmEnabled = true;
 static bool saveOk = true;
-static unsigned saves;
-static bool ulcCfgSave() { ++saves; return saveOk; }
+static bool ulcCfgSave() { return saveOk; }
 #define portENTER_CRITICAL(x) ((void)0)
 #define portEXIT_CRITICAL(x) ((void)0)
-#include "../usb_confirm_probe.h"
 static struct {
   bool connected = true;
   int capacity = 512;
@@ -58,44 +55,6 @@ int main() {
   assert(request(String(80, 'x') + "GET /api/blinkA/stats\n").find("error") != String::npos);
   assert(request(String("GET /api/profile/status\0bad\n", 28)).find("error") != String::npos);
   assert(snapshots == before);
-  const unsigned probeSaves = saves;
-  assert(request("GET /api/ulc/confirm-probe\n").find("\"mode\":0") != String::npos);
-  assert(request("POST /api/ulc/confirm-probe?mode=1\n").find("\"remainingMs\":120000") != String::npos);
-  uint8_t raw[8] = {1,0,2,0,6,0x88,0x1B,0x80};
-  const uint8_t expected[8] = {1,0,0,0,6,0x88,0x1B,0x80};
-  usbConfirmProbeApply3fd(raw, 8, usbConfirmProbeState().mode);
-  assert(!memcmp(raw, expected, 8)); // Only bit17; camera and other flags preserved.
-  raw[2] = 2; usbConfirmProbeApply3fd(raw, 7, 1); assert(raw[2] == 2);
-  raw[0] = 0; usbConfirmProbeApply3fd(raw, 8, 1); assert(raw[2] == 2);
-  raw[0] = 1; usbConfirmProbeApply3fd(raw, 8, 0); assert(raw[2] == 2);
-  usbConfirmProbeApply3fd(nullptr, 8, 1);
-  assert(request("POST /api/ulc/confirm-probe?mode=2\n").find("\"mode\":2") != String::npos);
-  usbConfirmProbeApply3fd(raw, 8, 2); assert(!memcmp(raw, expected, 8));
-  now = USB_CONFIRM_PROBE_MS; Serial.connected = false; ticks();
-  assert(usbConfirmProbeState().mode == 0); Serial.connected = true;
-  now = 0xFFFFFFF0u; usbConfirmProbeState(1); now = 10;
-  assert(usbConfirmProbeState().remainingMs == USB_CONFIRM_PROBE_MS - 26);
-  assert(request("POST /api/ulc/confirm-probe?mode=0\n").find("\"mode\":0") != String::npos);
-  ulcNoConfirmEnabled = false;
-  assert(request("POST /api/ulc/confirm-probe?mode=1\n").find("error") != String::npos);
-  assert(usbConfirmProbeState().mode == 0); ulcNoConfirmEnabled = true;
-  assert(request("POST /api/ulc/confirm-probe?mode=3\n").find("\"mode\":3") != String::npos);
-  uint8_t manual[8] = {1,0,0x0E,0,6,8,0x1B,0x80};
-  const uint8_t manualExpected[8] = {1,0,0x0C,0,6,8,0x1B,0x80};
-  usbConfirmProbeApply3fd(manual, 8, 3);
-  assert(!memcmp(manual, manualExpected, 8)); // Preserve native R79 and camera bits.
-  usbConfirmProbeState(0);
-  for (int mode : {4, 5}) {
-    assert(request("POST /api/ulc/confirm-probe?mode=" + std::to_string(mode) + "\n").find("error") == String::npos);
-    assert(usbConfirmProbeBit18Policy(1, usbConfirmProbeState().mode) == 0);
-    uint8_t stock[8] = {1,0,6,0,6,0x88,0x1B,0x80};
-    usbConfirmProbeApply3fd(stock, 8, (uint8_t)mode);
-    assert(stock[2] == (mode == 4 ? 6 : 4));
-  }
-  assert(usbConfirmProbeBit18Policy(1, 0) == 1);
-  usbConfirmProbeState(0);
-  assert(request("POST /api/ulc/confirm-probe?mode=6\n").find("error") != String::npos);
-  assert(saves == probeSaves);
   assert(request("GET /api/ulc/update?timing=1\n").find("error") != String::npos);
   assert(ulcNoConfirmTimingMode == 0);
   assert(request("POST /api/ulc/update?timing=1\n").find("ulcStatsToJson") != String::npos);

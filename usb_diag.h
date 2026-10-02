@@ -104,16 +104,6 @@ static String usbDiagConfirmTiming(uint8_t timing) {
   return ulcStatsToJson();
 }
 
-static String usbDiagConfirmProbe(int command) {
-  if (command > 0 && !ulcNoConfirmEnabled)
-    return "{\"error\":\"Select Confirm-Free before arming\"}";
-  const auto state = usbConfirmProbeState(command);
-  char out[112];
-  snprintf(out, sizeof(out), "{\"mode\":%u,\"remainingMs\":%lu,\"persistent\":false}",
-           (unsigned)state.mode, (unsigned long)state.remainingMs);
-  return String(out);
-}
-
 // Dashboard snapshots and the existing Confirm-Free timing selector over USB.
 // Independent of synchronous HTTP; only the exact requests below are accepted.
 static void usbDiagTick() {
@@ -127,13 +117,6 @@ static void usbDiagTick() {
     {"GET /api/canb/txtrace", usbDiagCanBTxTrace},
     {"GET /api/ulc/bus-rx", usbDiagUlcBusRx},
     {"GET /api/ulc/stats", ulcStatsToJson},
-    {"GET /api/ulc/confirm-probe", []() { return usbDiagConfirmProbe(-1); }},
-    {"POST /api/ulc/confirm-probe?mode=0", []() { return usbDiagConfirmProbe(0); }},
-    {"POST /api/ulc/confirm-probe?mode=1", []() { return usbDiagConfirmProbe(1); }},
-    {"POST /api/ulc/confirm-probe?mode=2", []() { return usbDiagConfirmProbe(2); }},
-    {"POST /api/ulc/confirm-probe?mode=3", []() { return usbDiagConfirmProbe(3); }},
-    {"POST /api/ulc/confirm-probe?mode=4", []() { return usbDiagConfirmProbe(4); }},
-    {"POST /api/ulc/confirm-probe?mode=5", []() { return usbDiagConfirmProbe(5); }},
     {"GET /api/lab/auto-lane-change/stats", ulcStatsToJson},
     {"GET /api/system/stats", systemStatsToJson},
     {"GET /api/researchcapture/stats", researchCaptureStatsToJson},
@@ -145,7 +128,6 @@ static void usbDiagTick() {
   static bool overflow = false;
   static String response;
   static uint32_t responseAt = 0;
-  (void)usbConfirmProbeState(); // Expire even with USB disconnected.
   if (!Serial) {
     used = sent = 0; overflow = false; response = "";
     return;

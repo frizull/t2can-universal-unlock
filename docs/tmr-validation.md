@@ -154,13 +154,13 @@ Based directly on upstream `main` at
   Chassis had no software RX drops, hardware TX failures or recovery, with 155
   hardware RX overruns. The CAN-A group recorded 128 hardware TX failures.
   The speed probe was explicitly disarmed and its firmware code removed.
-- Next temporary USB matrix `/api/ulc/confirm-probe`: mode 1 clears public-DBC
+- Temporary USB matrix (subsequently removed) `/api/ulc/confirm-probe`: mode 1 clears public-DBC
   `UI_driverMonitorConfirmation` (0x3FD mux1 bit17) alongside normal Confirm-Free;
   mode 2 clears that flag while leaving the stock 0x3F8 stalk-confirmation flag.
   Both modes expire after 120 s, start OFF, write no NVS, and use only existing
   transmission paths. The field's effect on 2026.32.7 is unverified. Camera
   enable, remaining payload bits, native Mad Max and Auto Blinker are unchanged.
-  Mode 0 stops the experiment. Remove the probe after the experiment batch.
+  Mode 0 stopped the experiment. All probe code was removed after the batch.
 - Confirmation matrix results so far: with NOA active, the user observed a
   turn-signal-confirmation prompt both with bit17 cleared alongside Confirm-Free
   and with bit17 cleared while stock stalk confirmation passed through. USB
@@ -212,16 +212,35 @@ passive `0x3F8` snapshot for each connector, not a third-bus capture/export.
 
 - The repeated pre-engagement run reached NOA and still required the turn
   signal. Bit17 was not continuously overlaid during manual-drive suppression.
-  Temporary mode 3 adds a received-stock mux1 echo changing only bit17 during
+  Temporary mode 3 added a received-stock mux1 echo changing only bit17 during
   that interval; administrative holds and offline states still block it. This
   enables a continuous engagement comparison without applying R79 overlays in
   the manual-drive interval. Mode 3 has the same RAM-only expiry and remains OFF
   at boot. The continuous comparison reached NOA and still asked for the turn
   signal without maneuvering (135 snapshots, 220.95 s, zero USB errors). Mode 0
   and AP_ACTIVE_ONLY timing were restored afterward.
-- The next temporary comparison preserves native bit18 using the existing R79
+- The final temporary comparison preserved native bit18 using the existing R79
   STOCK policy: mode 4 with normal Confirm-Free, mode 5 also clearing bit17.
   Both fast echo and periodic/retry output use that temporary policy; saved NVS
   policy remains unchanged. This tests interaction with the normal bit18=0
   override without assigning an unverified meaning to bit18. Both modes retain
   the same expiry and are OFF at boot.
+
+- Both native-bit18 comparisons failed: the user observed “Use the turn signal
+  to confirm” and no maneuver with normal Confirm-Free (31 snapshots / 47.64 s)
+  and with bit17 also cleared (49 snapshots / 77.99 s). NOA remained active in
+  every snapshot, with zero USB errors, Chassis hardware TX failures, software
+  RX drops or hard recoveries. The outgoing mux1 payloads were respectively
+  `0100060006881B80` and `0100040006881B80`; 0x3F8 remained
+  `8128080059DD9FA0`. Chassis hardware RX overruns increased by 49 and 112;
+  the CAN-A group recorded 90 and 28 TX failures. These captures establish
+  the emitted overrides and failed observed outcome, not controller acceptance
+  of the confirmation settings.
+- The temporary confirmation endpoint, modes, manual-drive echo and related
+  test code were removed after explicit disarm. Production firmware sources
+  match the pre-probe baseline `07807b4`; saved bit18 policy, Mad Max,
+  AP_ACTIVE_ONLY timing and Auto Blinker OFF are retained. Confirm-Free remains
+  unresolved on this 2026.32.7 bench. The speed-setting control influenced
+  suggestions, so a completely ineffective injection path does not explain
+  all results; an additional controller condition or changed confirmation
+  signal remains possible, without evidence yet distinguishing them.

@@ -1,5 +1,4 @@
 #pragma once
-#include "usb_confirm_probe.h"
 
 // VEHICLE FEATURE LOGIC / R79 / SUMMON / ALC / VH RECORDER
 // Kept in the same translation unit to preserve proven runtime behavior.
@@ -206,7 +205,6 @@ static bool r79DmsNagLabActive() {
 
 static inline void r79DmsNagLabApply(uint8_t *data) {
   r79DmsNagLabApplyPure(data, r79DmsNagLabActive());
-  usbConfirmProbeApply3fd(data, 8, usbConfirmProbeState().mode);
 }
 
 static const char* r79RuntimeStateName(uint8_t state) {
@@ -282,7 +280,6 @@ static bool r79LabApplySelectedBits(uint8_t *data) {
   portENTER_CRITICAL(&r79LabMux);
   bit18Policy = r79Bit18Policy;
   portEXIT_CRITICAL(&r79LabMux);
-  bit18Policy = usbConfirmProbeBit18Policy(bit18Policy, usbConfirmProbeState().mode);
   r79FixedApplyBitsPure(data, bit18Policy);
   r79DmsNagLabApply(data);
   return true;
@@ -2533,7 +2530,6 @@ static void injectDriverAssistControl(const twai_message_t &src) {
     selected.confirmFreeEnabled = ulcNoConfirmEnabled;
     confirmTiming = ulcNoConfirmTimingMode;
     portEXIT_CRITICAL(&lab3f8Mux);
-    if (usbConfirmProbeState().mode == 2) selected.confirmFreeEnabled = false;
 
     const bool blindSelected =
         selected.blindSpotMode != ULC_COMPOSITE_STOCK_PURE;
@@ -3076,14 +3072,6 @@ static bool r79FixedFastEcho(const twai_message_t &src, int64_t rxDequeueUs) {
   if (src.data_length_code < 8 || readMuxID(src.data) != 1u) return false;
   const uint32_t now = (uint32_t)millis();
   const uint8_t blockReason = r79FastReactiveBlockReason();
-  // Bench mode 3 covers engagement without applying the normal R79 overlays
-  // while manually driving: change only bit17 of this received mux1 frame.
-  if (blockReason == R79LAB_BLOCK_MANUAL && usbConfirmProbeState().mode == 3) {
-    twai_message_t probe = src;
-    probe.flags = 0;
-    usbConfirmProbeApply3fd(probe.data, probe.data_length_code, 3);
-    return r79LabDirectTwaiTransmit(&probe) == ESP_OK;
-  }
   if (blockReason != R79LAB_BLOCK_NONE) {
     r79FastReactiveRecordBlocked(blockReason, now);
     return false;
@@ -3093,7 +3081,6 @@ static bool r79FixedFastEcho(const twai_message_t &src, int64_t rxDequeueUs) {
   portENTER_CRITICAL(&r79LabMux);
   bit18Policy = r79Bit18Policy;
   portEXIT_CRITICAL(&r79LabMux);
-  bit18Policy = usbConfirmProbeBit18Policy(bit18Policy, usbConfirmProbeState().mode);
 
   twai_message_t out = {};
   out.identifier = 0x3FD;
