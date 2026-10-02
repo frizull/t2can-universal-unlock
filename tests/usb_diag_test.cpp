@@ -15,6 +15,8 @@ static unsigned snapshots;
 STATUS(vehicleProfileStatusJson) STATUS(v3FeaturePolicyJson) STATUS(blinkAStatsToJson)
 STATUS(dasTelemetryStatsToJson) STATUS(ulcStatsToJson) STATUS(systemStatsToJson)
 STATUS(researchCaptureStatsToJson) STATUS(r79StatsToJson)
+STATUS(regionProbeStats)
+static String regionProbeSet(uint8_t) { return "{}"; }
 static constexpr uint8_t CAN_B_TX_TRACE_CAPACITY = 64;
 struct CanBTxTraceEntry { uint32_t seq, capturedMs; uint16_t id; uint8_t dlc, source; int32_t result; uint8_t data[8]; };
 static CanBTxTraceEntry canBTxTraceLive[CAN_B_TX_TRACE_CAPACITY] = {};
@@ -77,7 +79,7 @@ int main() {
   stock[0] = 0x81;
   now = 0xFFFFFFFAu;
   usbDiagUlcObserve(2, 0x3F8, 8, stock);
-  usbDiagUlcObserve(0, 0x293, 8, stock); // Unrelated or malformed frames ignored.
+  usbDiagUlcObserve(0, 0x294, 8, stock); // Unrelated or malformed frames ignored.
   usbDiagUlcObserve(0, 0x3F8, 7, stock);
   usbDiagUlcObserve(3, 0x3F8, 8, stock);
   usbDiagUlcObserve(0, 0x3F8, 8, nullptr);
@@ -106,6 +108,24 @@ int main() {
   assert(dasBuses.find("\"bus\":\"B\",\"id\":1001,\"rx\":0") != String::npos);
   assert(dasBuses.find("\"bus\":\"B\",\"id\":586,\"rx\":1") != String::npos);
   assert(request("POST /api/das/bus-rx\n").find("error") != String::npos);
+  // A changing 0x7FF page must not overwrite the other region/configuration page.
+  const uint8_t country[8] = {1, 2, 0x46, 0x52, 0, 4, 0, 0};
+  const uint8_t region[8] = {3, 0xB1, 0, 0, 0, 0, 0, 0};
+  const uint8_t otherPage[8] = {2, 0xFF, 0, 0, 0, 0, 0, 0};
+  usbDiagUlcObserve(2, 0x293, 8, stock);
+  usbDiagUlcObserve(1, 0x238, 8, passing);
+  usbDiagUlcObserve(2, 0x7FF, 8, country);
+  usbDiagUlcObserve(2, 0x7FF, 8, region);
+  usbDiagUlcObserve(2, 0x7FF, 8, otherPage);
+  usbDiagUlcObserve(2, 0x7FF, 7, country);
+  usbDiagUlcObserve(3, 0x7FF, 8, region);
+  usbDiagUlcObserve(2, 0x7FF, 8, nullptr);
+  const String config = request("GET /api/das/bus-rx\n");
+  assert(config.find("\"bus\":\"C\",\"id\":659,\"rx\":1") != String::npos);
+  assert(config.find("\"bus\":\"B\",\"id\":568,\"rx\":1") != String::npos);
+  assert(config.find("\"bus\":\"C\",\"id\":2047,\"rx\":1,\"ms\":10,\"ageMs\":0,\"raw\":\"0102465200040000\",\"page\":1") != String::npos);
+  assert(config.find("\"bus\":\"C\",\"id\":2047,\"rx\":1,\"ms\":10,\"ageMs\":0,\"raw\":\"03B1000000000000\",\"page\":3") != String::npos);
+  assert(config.find("\"bus\":\"A\",\"id\":2047,\"rx\":0") != String::npos);
   assert(request("GET /api/canb/txtrace\n").find("\"frames\":[]") != String::npos);
   canBTxTraceLive[63] = {11, 100, 0x3F8, 8, 0, 0, {0x81, 0x28, 8, 0, 0x59, 0xDD, 0x9F, 0xA1}};
   canBTxTraceLive[0] = {12, 101, 0x293, 1, 0, -1, {0xFF}};

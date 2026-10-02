@@ -244,3 +244,28 @@ passive `0x3F8` snapshot for each connector, not a third-bus capture/export.
   suggestions, so a completely ineffective injection path does not explain
   all results; an additional controller condition or changed confirmation
   signal remains possible, without evidence yet distinguishing them.
+
+### Region comparison bring-up (2026-10-03)
+
+- Reread the Discord Confirm-Free thread: working reports cluster in Korea;
+  EU and Japan reports still require confirmation, including similar software
+  versions. These are anecdotal reports, not proof that region is causal. The
+  20 ms R79 suggestion in that thread concerned Summon, not confirmed passing.
+- Extended passive USB `/api/das/bus-rx` with 0x293, 0x238 and separate 0x7FF
+  pages 1/3, retaining Body A, Chassis B and Party C identities. The third-bus
+  branch had skipped the legacy 0x293 observer. Live capture closes that gap:
+  stock enable is already ON on all three buses. Native road country=250,
+  country configuration bytes=52 46 (packed FR), map region=1 (EU).
+- Current public Model3CAN.dbc documents 0x238 country bits16..25, 0x7FF page1
+  country bits16..31 and page3 map-region bits8..11 (EU=1, KR=7):
+  https://github.com/joshwardell/model3dbc/blob/master/Model3CAN.dbc
+  Road country=410 and packed KR follow the numeric-code/native-byte-order
+  hypothesis; controller interpretation on this software remains to be tested.
+- Temporary USB region-probe modes: 1 map only, 2 road/config country only,
+  3 both. OFF at boot, no NVS writes, 180 s expiry, explicit mode0 disarm.
+  Only received same-bus stock templates are copied, with existing TX recovery
+  barriers/admission retained. 0x238 counter/checksum are updated; other fields
+  and other 0x7FF pages remain untouched. T2CAN cannot arm these bench probes.
+  Host checks cover field preservation, counter wrap/checksum, mode separation,
+  invalid RX and expiry; firmware build and live replay results are recorded
+  separately. An accepted transmission does not establish AP acceptance.
