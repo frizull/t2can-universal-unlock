@@ -269,3 +269,21 @@ passive `0x3F8` snapshot for each connector, not a third-bus capture/export.
   Host checks cover field preservation, counter wrap/checksum, mode separation,
   invalid RX and expiry; firmware build and live replay results are recorded
   separately. An accepted transmission does not establish AP acceptance.
+- Build `1967d06` flashed to the identified TMR, write hash verified, fresh boot
+  and USB verified (probe OFF, Highland, three-bus topology). Map-only test:
+  the user still observed the turn-signal prompt and no maneuver. Country-only
+  test: the user reported a lane change without input, with Auto Blinker OFF
+  and normal Confirm-Free ON. This is the first positive observation; repeat
+  and stock-country comparison are pending. It does not yet identify which
+  country field mattered or establish a production fix. The country-only
+  recording contains 162 snapshots / 185.67 s and zero USB errors; expiry to
+  mode0 was observed at 181.11 s. Final per-bus OK/FAIL counts were A159/5,
+  B527/13, C36/2, with zero Chassis hardware TX failures. Native FR/250/EU
+  frames were observed again on all applicable buses after disarm.
+- The user subsequently reported a confirmation request on the repeat and
+  insufficient time for the stock comparison. The observation cannot be
+  aligned confidently before/after expiry; the first positive is unreplicated.
+  Restored country-only mode2 for a fresh repeat. The host collector renews
+  the same mode every 120 s so the bench conditions do not expire while the
+  user observes; renewal resets firmware probe counters and is logged as an
+  explicit segment boundary. Each renewal still expires if the host stops.
