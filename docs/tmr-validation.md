@@ -116,6 +116,16 @@ Based directly on upstream `main` at
   recovery. Hardware RX-overrun counters increased by 26 on Chassis and 34 on
   the CAN-A group. `0x24A` was observed on B/Chassis and `0x3E9` separately on
   A/Body and C/Party; the bench was AP-inactive during this runtime check.
+- With the expanded diagnostics, the user again confirmed an automatic signalled
+  crossing into a newly forming exit lane. The 78.7 s / 333-snapshot capture had
+  zero USB errors or software RX drops. Chassis had no hardware TX failures or
+  recovery; the CAN-A group recorded 29 TX failures, with zero consecutive
+  failures at the final status sample and no bus-off. Auto Blinker sent zero
+  frames. The public DBC's `0x3E9` reason bits 18-21 stayed zero in all 146 unique
+  observed RX snapshots; bits 33-36 instead varied with indicator actions
+  (0/3/4/5/8). That alternate field is an unvalidated candidate, not an established
+  signal mapping or a Confirm-Free fix. Raw frames and bus identities are saved
+  for comparison with a blocked request; firmware transmission policy is unchanged.
 
 Run the committed host tests from the repository root:
 
