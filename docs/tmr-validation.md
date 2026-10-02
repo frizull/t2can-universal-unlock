@@ -20,6 +20,18 @@ Based directly on upstream `main` at
 - Embedded setup UI inspected with simulated API responses: TMR activates
   all three standard buses, Highland still requires turn-control selection,
   and T-2CAN retains its original two-bus topology choices.
+- USB diagnostics host tests with sanitizers: fragmented/overlong/invalid
+  requests, GET/POST route isolation, timing persistence/rollback, partial writes, backpressure, timeout,
+  disconnect and queued requests. The Python client also passed a pseudo-terminal
+  round trip with fragmented JSON and unrelated boot log lines.
+- A23 `94:A9:90:31:F2:70`: app-only USB flash verified at the freshly read active
+  slot `0x10000`; bootloader, partition table and NVS were not written. Live USB
+  status confirmed the saved Highland/stalkless profile, three-bus topology,
+  Body/Chassis traffic and Party RX, plus the saved Auto Lane Change/Confirm-Free
+  settings. This proves boot and telemetry, not lane-change behavior.
+- USB status runs independently of synchronous HTTP clients. The initial
+  web-task implementation was moved after a live capture encountered a timeout;
+  status reads then recovered without a board reset.
 
 Run the committed host tests from the repository root:
 
@@ -27,6 +39,9 @@ Run the committed host tests from the repository root:
 c++ -std=c++17 -Wall -Wextra -Werror -Wno-unused-function -Wno-unused-parameter \
   -fsanitize=address,undefined tests/board_can_test.cpp -o /tmp/board_can_test
 /tmp/board_can_test
+c++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined \
+  tests/usb_diag_test.cpp -o /tmp/usb_diag_test
+/tmp/usb_diag_test
 ```
 
 Build the same image for either board with `python3 tools/build.py`. The helper
@@ -35,8 +50,8 @@ Build output is ignored by Git; no release or board-specific image is created.
 
 ## Hardware verification outstanding
 
-No board was flashed and no physical CAN/vehicle behavior was validated here.
-Before deployment, verify:
+The A23 boot and telemetry checks above do not establish vehicle behavior or
+physical T-2CAN compatibility. Remaining bench verification:
 
 1. The same image boots on both boards, detects the correct resistor signature,
    exposes USB and the correct default SSID, and preserves saved custom Wi-Fi settings.

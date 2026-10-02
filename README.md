@@ -39,6 +39,18 @@ build flag or separate release is needed. `tools/update_profile_ui.py` (Python `
 the profile script inside the upstream compressed dashboard without changing
 its other scripts. Regression and bench-test status: [TMR validation](docs/tmr-validation.md).
 
+Live status is also available over USB without changing Wi-Fi or resetting the
+board: `python3 tools/usb_status.py --port /dev/cu.usbmodem101` (use the actual
+ESP port). Optional arguments select status paths such as `/api/blinkA/stats`.
+The wire protocol is `GET /api/...` followed by a newline, returning one JSON
+line with `path` and `data`. It exposes read-only profile, features, Auto Blinker,
+DAS, ULC/Auto Lane Change, system and research-capture status from the same
+builders as the dashboard, on both TMR and T-2CAN. USB diagnostics do not require
+the verbose logging build flag. The only USB writes are the existing Confirm-Free
+timing choices: `--method POST '/api/ulc/update?timing=0'` (AP only) or `timing=1`
+(Pre-AP). They persist the selection with rollback on an NVS error. No arbitrary
+CAN injection or other settings writes are exposed.
+
 | 📅 Release | 👨‍💻 Firmware rewrite | 🌐 Dashboard | 📜 History |
 |---|---|---|---|
 | 27 September 2026 | LP_YL | [Open dashboard demo](https://06066060606060.github.io/t2can-universal-unlock/) | [CHANGELOG.md](https://github.com/06066060606060/t2can-universal-unlock/blob/pre-release/CHANGELOG.md) |
