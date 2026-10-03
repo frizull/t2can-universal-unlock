@@ -306,3 +306,14 @@ passive `0x3F8` snapshot for each connector, not a third-bus capture/export.
   assist; mode0 therefore disarms both the saved assist and temporary probe.
   The status response exposes `persistentCountry`, with `remainingMs=0` meaning
   no timer for the saved assist. Temporary experiments retain their 180 s limit.
+- Deployed `cf4dc1a` application image to the reidentified TMR on USB101,
+  preserving NVS/partitions. Verified write hash, default-OFF first boot,
+  enable/readback, mode0 clearing the saved assist, re-enable, and a separate
+  reboot. At fresh uptime44 s the saved country assist was already mode2;
+  Confirm-Free remained ON, Auto Blinker OFF, and all three buses had successful
+  country-override transmissions. Read-only checks through uptime197 s kept
+  mode2/persistentCountry=true with no renewal POSTs. From uptime94 to197 s,
+  successful A/B/C counts increased 91/272/29 -> 169/581/58, Party RX increased
+  103271 -> 224105, and no hard recovery occurred. These counts indicate
+  transmissions, separately from the observed outcome: after the Glass cue,
+  the user confirmed another automatic lane change without confirmation.
