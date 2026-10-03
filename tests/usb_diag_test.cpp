@@ -16,6 +16,7 @@ STATUS(vehicleProfileStatusJson) STATUS(v3FeaturePolicyJson) STATUS(blinkAStatsT
 STATUS(dasTelemetryStatsToJson) STATUS(ulcStatsToJson) STATUS(systemStatsToJson)
 STATUS(researchCaptureStatsToJson) STATUS(r79StatsToJson)
 STATUS(regionProbeStats)
+STATUS(regionProbePersistCountry)
 static String regionProbeSet(uint8_t) { return "{}"; }
 static constexpr uint8_t CAN_B_TX_TRACE_CAPACITY = 64;
 struct CanBTxTraceEntry { uint32_t seq, capturedMs; uint16_t id; uint8_t dlc, source; int32_t result; uint8_t data[8]; };

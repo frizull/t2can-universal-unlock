@@ -4,25 +4,48 @@
 static portMUX_TYPE regionProbeMux = portMUX_INITIALIZER_UNLOCKED;
 static uint8_t regionProbeMode = 0;
 static uint32_t regionProbeStart = 0;
+static bool regionProbePersistent = false;
 static struct RegionProbeTx { uint32_t ok, fail; uint16_t id; uint8_t raw[8]; } regionProbeTx[3] = {};
+
+static void regionProbeLoad() {
+  if (board != BOARD_TMR || !boardTripleCan()) return;
+  Preferences p;
+  if (p.begin("regionLab", true)) {
+    regionProbePersistent = p.getBool("countryKR", false);
+    p.end();
+  }
+}
+
+static bool regionProbeSavePersistent(bool enabled) {
+  Preferences p;
+  if (!p.begin("regionLab", false)) return false;
+  const bool ok = p.putBool("countryKR", enabled) > 0 && p.getBool("countryKR", !enabled) == enabled;
+  p.end();
+  if (ok) { portENTER_CRITICAL(&regionProbeMux); regionProbePersistent = enabled; portEXIT_CRITICAL(&regionProbeMux); }
+  return ok;
+}
 
 static uint8_t regionProbeActiveMode() {
   const uint32_t now = millis();
+  portENTER_CRITICAL(&lab3f8Mux);
+  const bool confirm = ulcNoConfirmEnabled && activeProfileUlcNoConfirmSupported();
+  portEXIT_CRITICAL(&lab3f8Mux);
   portENTER_CRITICAL(&regionProbeMux);
   if (!regionProbeLivePure(regionProbeMode, regionProbeStart, now)) regionProbeMode = 0;
-  const uint8_t mode = regionProbeMode;
+  const uint8_t mode = regionProbeSelectPure(regionProbeMode, regionProbePersistent, confirm);
   portEXIT_CRITICAL(&regionProbeMux);
   return mode;
 }
 
 static String regionProbeStats() {
   const uint8_t mode = regionProbeActiveMode();
-  RegionProbeTx tx[3]; uint32_t start;
+  RegionProbeTx tx[3]; uint32_t start; bool persistent;
   portENTER_CRITICAL(&regionProbeMux);
-  memcpy(tx, regionProbeTx, sizeof(tx)); start = regionProbeStart;
+  memcpy(tx, regionProbeTx, sizeof(tx)); start = regionProbeStart; persistent = regionProbePersistent;
   portEXIT_CRITICAL(&regionProbeMux);
   String s = "{\"mode\":" + String(mode) + ",\"remainingMs\":" +
-      String(mode ? 180000 - (uint32_t)(millis() - start) : 0) + ",\"buses\":[";
+      String(mode && !persistent ? 180000 - (uint32_t)(millis() - start) : 0) +
+      ",\"persistentCountry\":" + (persistent ? "true" : "false") + ",\"buses\":[";
   for (uint8_t b = 0; b < 3; ++b) {
     char raw[17] = {}, line[192];
     if (tx[b].ok || tx[b].fail) for (uint8_t j = 0; j < 8; ++j) snprintf(raw + j * 2, 3, "%02X", tx[b].raw[j]);
@@ -36,8 +59,22 @@ static String regionProbeStats() {
 static String regionProbeSet(uint8_t mode) {
   if (board != BOARD_TMR || !boardTripleCan() || mode > 3) return "{\"error\":\"TMR three-bus bench only\"}";
   portENTER_CRITICAL(&regionProbeMux);
+  const bool persistent = regionProbePersistent;
+  portEXIT_CRITICAL(&regionProbeMux);
+  if (persistent && !regionProbeSavePersistent(false)) return "{\"error\":\"NVS write failed\"}";
+  portENTER_CRITICAL(&regionProbeMux);
   regionProbeMode = mode; regionProbeStart = millis();
   if (mode) memset(regionProbeTx, 0, sizeof(regionProbeTx));
+  portEXIT_CRITICAL(&regionProbeMux);
+  return regionProbeStats();
+}
+
+static String regionProbePersistCountry() {
+  if (board != BOARD_TMR || !boardTripleCan() || !activeProfileUlcNoConfirmSupported())
+    return "{\"error\":\"TMR Confirm-Free bench only\"}";
+  if (!regionProbeSavePersistent(true)) return "{\"error\":\"NVS write failed\"}";
+  portENTER_CRITICAL(&regionProbeMux);
+  regionProbeMode = 0; memset(regionProbeTx, 0, sizeof(regionProbeTx));
   portEXIT_CRITICAL(&regionProbeMux);
   return regionProbeStats();
 }

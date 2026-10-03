@@ -118,6 +118,7 @@ static void usbDiagTick() {
     {"GET /api/das/stats", dasTelemetryStatsToJson},
     {"GET /api/das/bus-rx", usbDiagDasBusRx},
     {"GET /api/region-probe", regionProbeStats},
+    {"POST /api/region-probe?persist=2", regionProbePersistCountry},
     {"POST /api/region-probe?mode=0", []() { return regionProbeSet(0); }},
     {"POST /api/region-probe?mode=1", []() { return regionProbeSet(1); }},
     {"POST /api/region-probe?mode=2", []() { return regionProbeSet(2); }},

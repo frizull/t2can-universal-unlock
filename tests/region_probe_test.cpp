@@ -34,5 +34,9 @@ int main() {
   assert(regionProbeLivePure(1, 10, 180009));
   assert(!regionProbeLivePure(1, 10, 180010));
   assert(!regionProbeLivePure(0, 10, 11));
+  assert(regionProbeSelectPure(0, true, true) == 2); // Restored preference, no timer/host.
+  assert(regionProbeSelectPure(3, true, true) == 2); // Persistent country never changes map region.
+  assert(regionProbeSelectPure(3, true, false) == 0); // Confirm-Free OFF stops the assist.
+  assert(regionProbeSelectPure(1, false, false) == 1); // Temporary experiments retain their selector.
   puts("Region comparison: field preservation, checksum/counter, selectors, malformed RX and expiry PASS");
 }

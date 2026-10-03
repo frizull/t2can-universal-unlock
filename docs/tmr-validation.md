@@ -287,3 +287,22 @@ passive `0x3F8` snapshot for each connector, not a third-bus capture/export.
   the same mode every 120 s so the bench conditions do not expire while the
   user observes; renewal resets firmware probe counters and is logged as an
   explicit segment boundary. Each renewal still expires if the host stops.
+- The user subsequently confirmed that the fresh country-only repeat triggered
+  successfully. Keep this as observed bench behavior, not a general road claim.
+
+### Country assist persistence repair (2026-10-03 morning)
+
+- Live USB read found the same TMR serial `94:A9:90:31:F2:70`, now on
+  `/dev/cu.usbmodem3101`, uptime168 s, region probe mode0 and zero probe TX.
+  Confirm-Free was ON, NOA active, Auto Blinker OFF. The old host recorder had
+  exited because `/dev/cu.usbmodem101` disappeared. The region experiment was
+  RAM-only and OFF after reboot; the successful assist was not a durable setting.
+- Added opt-in NVS `regionLab/countryKR`, enabled through USB
+  `POST /api/region-probe?persist=2`. It restores only country-mode2, remains
+  active without a host timer while Confirm-Free is ON, and stops when that
+  feature is OFF. It never alters map region. Default is OFF and only a detected
+  three-bus TMR can enable/load it, preserving upstream T2CAN behavior in the
+  same universal image. Any temporary mode command explicitly removes the saved
+  assist; mode0 therefore disarms both the saved assist and temporary probe.
+  The status response exposes `persistentCountry`, with `remainingMs=0` meaning
+  no timer for the saved assist. Temporary experiments retain their 180 s limit.

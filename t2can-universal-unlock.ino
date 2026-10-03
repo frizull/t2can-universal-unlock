@@ -176,6 +176,7 @@ void setup() {
   nagCfgLoad();
   summonCfgLoad();
   ulcCfgLoadAndMigrate();
+  regionProbeLoad();
   autoLaneChangeLabCfgLoadAndMigrate();
   r79CfgLoad();
   s3xyAutoLoadConfig();

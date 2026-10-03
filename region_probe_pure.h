@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <string.h>
 
-// Bench-only Korea comparison: 1 map, 2 country, 3 both. No stored settings.
+// Bench-only Korea comparison: 1 map, 2 country, 3 both.
 static inline bool regionProbePatchPure(uint8_t mode, uint32_t id, uint8_t dlc, uint8_t *data) {
   if (!mode || mode > 3 || dlc != 8 || !data) return false;
   uint8_t before[8]; memcpy(before, data, 8);
@@ -25,4 +25,8 @@ static inline bool regionProbePatchPure(uint8_t mode, uint32_t id, uint8_t dlc, 
 
 static inline bool regionProbeLivePure(uint8_t mode, uint32_t start, uint32_t now) {
   return mode >= 1 && mode <= 3 && (uint32_t)(now - start) < 180000;
+}
+
+static inline uint8_t regionProbeSelectPure(uint8_t temporaryMode, bool persistentCountry, bool confirmFree) {
+  return persistentCountry ? (confirmFree ? 2 : 0) : temporaryMode;
 }
